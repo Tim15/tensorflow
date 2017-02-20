@@ -1,0 +1,8 @@
+feed{
+  id{ node_name:"input" }
+  shape{ dim{size:227} dim{size:227} }
+}
+
+fetch {
+  id{ node_name: "output" }
+}
