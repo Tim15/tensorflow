@@ -1,0 +1,30 @@
+version: 0.1
+
+environment_variables:
+  plaintext:
+    key: "value"
+    key: "value"
+            
+phases:
+  install:
+    commands:
+      - command
+      - command
+  pre_build:
+    commands:
+      - ./configure
+      - bazel clean
+  build:
+    commands:
+      - bazel build //tensorflow/compiler/aot:tfcompile
+      - ./tensorflow/contrib/pi_examples/aot_xla/build.sh 3
+  post_build:
+    commands:
+      - ls ./tensorflow/contrib/pi_examples/aot_xla
+      - command
+artifacts:
+  files:
+    - location
+    - location
+  discard-paths: yes
+  base-directory: location
