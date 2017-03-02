@@ -2,14 +2,17 @@ version: 0.1
 
 environment_variables:
   plaintext:
-    key: "value"
-    key: "value"
+    PYTHON_BIN_PATH: "/bin/python"
+    TF_NEED_MKL: "0"
+    CC_OPT_FLAGS: "-march=native"
+    TF_NEED_JEMALLOC: "1"
+    TF_NEED_GCP: "0"
+    TF_NEED_HDFS: "0"
+    TF_ENABLE_XLA: "0"
+    TF_NEED_OPENCL: "0"
+    TF_NEED_CUDA: "0"
             
 phases:
-  install:
-    commands:
-      - command
-      - command
   pre_build:
     commands:
       - ./configure
@@ -21,10 +24,8 @@ phases:
   post_build:
     commands:
       - ls ./tensorflow/contrib/pi_examples/aot_xla
-      - command
 artifacts:
   files:
-    - location
-    - location
+    - /tensorflow/tensorflow/compiler/aot/tfcompile
   discard-paths: yes
-  base-directory: location
+  base-directory: /
