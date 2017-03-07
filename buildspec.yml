@@ -1,0 +1,31 @@
+version: 0.1
+
+environment_variables:
+  plaintext:
+    PYTHON_BIN_PATH: "/bin/python"
+    TF_NEED_MKL: "0"
+    CC_OPT_FLAGS: "-march=native"
+    TF_NEED_JEMALLOC: "1"
+    TF_NEED_GCP: "0"
+    TF_NEED_HDFS: "0"
+    TF_ENABLE_XLA: "0"
+    TF_NEED_OPENCL: "0"
+    TF_NEED_CUDA: "0"
+            
+phases:
+  pre_build:
+    commands:
+      - ./configure
+      - bazel clean
+  build:
+    commands:
+      - bazel build //tensorflow/compiler/aot:tfcompile
+      - ./tensorflow/contrib/pi_examples/aot_xla/build.sh 3
+  post_build:
+    commands:
+      - ls ./tensorflow/contrib/pi_examples/aot_xla
+artifacts:
+  files:
+    - /tensorflow/tensorflow/compiler/aot/tfcompile
+  discard-paths: yes
+  base-directory: /
