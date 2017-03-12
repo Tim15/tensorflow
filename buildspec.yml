@@ -20,7 +20,7 @@ environment_variables:
     TF_BUILD_IS_OPT: "opt"
     TF_BUILD_IS_PIP: "no_pip"
     
-    TF_BUILD_DRY_RUN: "1"
+    TF_BUILD_DRY_RUN: "0"
     TF_BUILD_MAVX: "0"
     TF_BUILD_APPEND_CI_DOCKER_EXTRA_PARAMS: "-e"
     TF_BUILD_FILTER_INSTALL_TESTS_BY_TAG: "-manual"
@@ -34,13 +34,11 @@ environment_variables:
     TF_BUILD_OPTIONS: "0"
             
 phases:
+  pre_build:
+    commands:
+      - chmod +x ./tensorflow/contrib/pi_examples/aot_xla/build.sh
   build:
     commands:
-      - pwd
-      - ls
-      - cd /tensorflow
-      - pwd
-      - ls
       - ./tensorflow/tools/ci_build/ci_parameterized_build.sh
       - ./tensorflow/contrib/pi_examples/aot_xla/build.sh 3
   post_build:
