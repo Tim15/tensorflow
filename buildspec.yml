@@ -11,15 +11,17 @@ environment_variables:
     TF_ENABLE_XLA: "0"
     TF_NEED_OPENCL: "0"
     TF_NEED_CUDA: "0"
+    TF_BUILD_CONTAINER_TYPE: "cpu"
+    TF_BUILD_IS_OPT: "OPT"
+    TF_BUILD_DRY_RUN: "1"
+    TF_BUILD_ENABLE_XLA: "1"
+    TF_BUILD_BAZEL_TARGET: "//tensorflow/aot:tfcompile"
+    TF_BUILD_OPTIONS: "FASTBUILD"
             
 phases:
-  pre_build:
-    commands:
-      - ./configure
-      - bazel clean
   build:
     commands:
-      - bazel build //tensorflow/compiler/aot:tfcompile
+      - ./tensorflow/tools/ci_builds/ci_parameterized_build.sh
       - ./tensorflow/contrib/pi_examples/aot_xla/build.sh 3
   post_build:
     commands:
