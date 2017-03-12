@@ -11,12 +11,27 @@ environment_variables:
     TF_ENABLE_XLA: "0"
     TF_NEED_OPENCL: "0"
     TF_NEED_CUDA: "0"
-    TF_BUILD_CONTAINER_TYPE: "cpu"
-    TF_BUILD_IS_OPT: "OPT"
-    TF_BUILD_DRY_RUN: "1"
+    
     TF_BUILD_ENABLE_XLA: "1"
     TF_BUILD_BAZEL_TARGET: "//tensorflow/aot:tfcompile"
-    TF_BUILD_OPTIONS: "FASTBUILD"
+    
+    TF_BUILD_CONTAINER_TYPE: "cpu"
+    TF_BUILD_PYTHON_VERSION: "python2"
+    TF_BUILD_IS_OPT: "opt"
+    TF_BUILD_IS_PIP: "no_pip"
+    
+    TF_BUILD_DRY_RUN: "1"
+    TF_BUILD_MAVX: "0"
+    TF_BUILD_APPEND_CI_DOCKER_EXTRA_PARAMS: "-e"
+    TF_BUILD_FILTER_INSTALL_TESTS_BY_TAG: "-manual"
+    TF_BUILD_APPEND_ARGUMENTS: "0"
+    TF_BUILD_BAZEL_TARGET: "0"
+    TF_BUILD_BAZEL_CLEAN: "0"
+    TF_BUILD_TEST_TUTORIALS: "0"
+    TF_BUILD_INTEGRATION_TESTS: "0"
+    TF_BUILD_RUN_BENCHMARKS: "0"
+    TF_BUILD_DISABLE_GCP: "0"
+    TF_BUILD_OPTIONS: "0"
             
 phases:
   build:
