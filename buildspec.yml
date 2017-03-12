@@ -41,7 +41,7 @@ phases:
       - cd /tensorflow
       - pwd
       - ls
-      - ./tensorflow/tools/ci_builds/ci_parameterized_build.sh
+      - ./tensorflow/tools/ci_build/ci_parameterized_build.sh
       - ./tensorflow/contrib/pi_examples/aot_xla/build.sh 3
   post_build:
     commands:
