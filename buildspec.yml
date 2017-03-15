@@ -2,7 +2,7 @@ version: 0.1
 
 environment_variables:
   plaintext:
-    PYTHON_BIN_PATH: "/bin/python"
+    PYTHON_BIN_PATH: "/usr/bin/python"
     TF_NEED_MKL: "0"
     CC_OPT_FLAGS: "-march=native"
     TF_NEED_JEMALLOC: "1"
