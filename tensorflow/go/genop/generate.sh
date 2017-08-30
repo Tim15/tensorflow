@@ -20,8 +20,13 @@ go get github.com/golang/protobuf/proto
 go get github.com/golang/protobuf/protoc-gen-go
 
 cd $(dirname $0)
-TF_DIR=${GOPATH}/src/github.com/tensorflow/tensorflow
-PROTOC="${TF_DIR}/bazel-out/host/bin/external/protobuf/protoc"
+for g in $(echo "${GOPATH//:/ }"); do
+    TF_DIR="${g}/src/github.com/tensorflow/tensorflow"
+    PROTOC="${TF_DIR}/bazel-out/host/bin/external/protobuf/protoc"
+    if [ -x "${PROTOC}" ]; then
+        break
+    fi
+done
 
 if [ ! -x "${PROTOC}" ]
 then
@@ -31,7 +36,7 @@ then
   then
     echo "Protocol buffer compiler protoc not found in PATH or in ${PROTOC}"
     echo "Perhaps build it using:"
-    echo "bazel build --config opt @protobuf//:protoc"
+    echo "bazel build --config opt @protobuf_archive//:protoc"
     exit 1
   fi
   PROTOC=$PATH_PROTOC

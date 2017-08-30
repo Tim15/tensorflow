@@ -1,7 +1,5 @@
 licenses(["notice"])  # Apache 2.0
 
-exports_files(["LICENSE"])
-
 filegroup(
     name = "all_files",
     srcs = glob(
@@ -24,7 +22,6 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
     ],
@@ -32,13 +29,13 @@ cc_library(
 
 cc_test(
     name = "utils_test",
+    size = "small",
     srcs = [
         "utils_test.cc",
     ],
     deps = [
         ":utils",
         "//tensorflow/core:lib",
-        "//tensorflow/core:protos_all_cc",
         "//tensorflow/core:test",
         "//tensorflow/core:test_main",
     ],
@@ -67,6 +64,22 @@ cc_library(
         "//tensorflow/core:tensorflow",
         "//tensorflow/core/grappler:grappler_item",
         "//tensorflow/core/kernels:aggregate_ops",
-        "//tensorflow/core/kernels:array",
+    ],
+)
+
+cc_library(
+    name = "file_input_yielder",
+    srcs = ["file_input_yielder.cc"],
+    hdrs = [
+        "file_input_yielder.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":input_yielder",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/grappler:grappler_item",
+        "//tensorflow/core/grappler:grappler_item_builder",
+        "//tensorflow/core/grappler:utils",
     ],
 )

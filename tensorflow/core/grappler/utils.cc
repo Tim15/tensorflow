@@ -13,42 +13,69 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <memory>
+
 #include "tensorflow/core/grappler/utils.h"
-#include "tensorflow/core/common_runtime/gpu/gpu_init.h"
+#include "tensorflow/core/lib/strings/numbers.h"
 #include "tensorflow/core/lib/strings/scanner.h"
 #include "tensorflow/core/lib/strings/strcat.h"
-#include "tensorflow/core/platform/cpu_info.h"
-#include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/platform/notification.h"
 
 namespace tensorflow {
 namespace grappler {
 
-int GetNumAvailableGPUs() {
-  int num_eligible_gpus = 0;
-  if (ValidateGPUMachineManager().ok()) {
-    perftools::gputools::Platform* gpu_manager = GPUMachineManager();
-    if (gpu_manager != nullptr) {
-      int num_gpus = gpu_manager->VisibleDeviceCount();
-      for (int i = 0; i < num_gpus; i++) {
-        auto exec_status = gpu_manager->ExecutorForDevice(i);
-        if (exec_status.ok()) {
-          perftools::gputools::StreamExecutor* se = exec_status.ValueOrDie();
-          const perftools::gputools::DeviceDescription& desc =
-              se->GetDeviceDescription();
-          int min_gpu_core_count = 8;
-          if (desc.core_count() >= min_gpu_core_count) {
-            num_eligible_gpus++;
-          }
-        }
-      }
+NodeMap::NodeMap(GraphDef* graph) : graph_(graph) {
+  for (int i = 0; i < graph_->node_size(); i++) {
+    auto node = graph_->mutable_node(i);
+    nodes_.insert(std::make_pair(node->name(), node));
+    for (const auto& input : node->input()) {
+      outputs_[NodeName(input)].insert(nodes_[node->name()]);
     }
   }
-  LOG(INFO) << "Number of eligible GPUs (core count >= 8): "
-            << num_eligible_gpus;
-  return num_eligible_gpus;
 }
 
-int GetNumAvailableLogicalCPUCores() { return port::NumSchedulableCPUs(); }
+NodeDef* NodeMap::GetNode(const string& name) const {
+  string node_name = NodeName(name);
+  auto it = nodes_.find(node_name);
+  if (it == nodes_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
+const std::set<NodeDef*>& NodeMap::GetOutputs(const string& node_name) const {
+  auto it = outputs_.find(node_name);
+  if (it == outputs_.end()) {
+    return empty_set_;
+  }
+  return it->second;
+}
+
+void NodeMap::AddNode(const string& name, NodeDef* node) {
+  nodes_.insert(std::make_pair(name, node));
+}
+
+void NodeMap::AddOutput(const string& node, const string& output) {
+  outputs_[node].insert(nodes_[output]);
+}
+
+void NodeMap::UpdateOutput(const string& node, const string& old_output,
+                           const string& new_output) {
+  std::set<NodeDef*>& outputs = outputs_[node];
+  outputs.erase(nodes_[old_output]);
+  outputs.insert(nodes_[new_output]);
+}
+
+bool IsSameInput(const string& name1, const string& name2) {
+  if (name1 == name2) {
+    return true;
+  }
+  int position1;
+  string node1 = ParseNodeName(name1, &position1);
+  int position2;
+  string node2 = ParseNodeName(name2, &position2);
+  return (position1 == position2) && (node1 == node2);
+}
 
 string ParseNodeName(const string& name, int* position) {
   // Strip the prefix '^' (if any), and strip the trailing ":{digits} (if any)
@@ -70,10 +97,14 @@ string ParseNodeName(const string& name, int* position) {
       *position = 0;
     } else {
       // Skip the first ':' character.
-      *position = std::stoi(remaining.substr(1).ToString());
+      CHECK(strings::safe_strto32(remaining.substr(1), position));
     }
     return capture.ToString();
   }
+}
+
+bool IsControlInput(const string& name) {
+  return !name.empty() && name[0] == '^';
 }
 
 string NodeName(const string& name) {
@@ -87,13 +118,34 @@ int NodePosition(const string& name) {
   return position;
 }
 
-string AddPrefixToNodeName(const string& name, const string& prefix) {
+string AddPrefixToNodeName(const string& name, const string& prefix,
+                           const string& delimiter) {
   if (!name.empty()) {
     if (name[0] == '^') {
-      return strings::StrCat("^", prefix, "-", name.substr(1));
+      return strings::StrCat("^", prefix, delimiter, name.substr(1));
     }
   }
-  return strings::StrCat(prefix, "-", name);
+  return strings::StrCat(prefix, delimiter, name);
+}
+
+string AddPrefixToNodeName(const string& name, const string& prefix) {
+  return AddPrefixToNodeName(name, prefix, "/");
+}
+
+bool ExecuteWithTimeout(std::function<void()> fn, const int64 timeout_in_ms,
+                        thread::ThreadPool* const thread_pool) {
+  if (timeout_in_ms <= 0) {
+    fn();
+    return true;
+  }
+  auto done = std::make_shared<Notification>();
+  thread_pool->Schedule([done, fn]() {
+    fn();
+    done->Notify();
+  });
+  const bool notified =
+      WaitForNotificationWithTimeout(done.get(), timeout_in_ms * 1000);
+  return notified;
 }
 
 }  // end namespace grappler

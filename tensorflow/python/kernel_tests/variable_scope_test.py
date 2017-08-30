@@ -24,10 +24,12 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import errors_impl
 from tensorflow.python.framework import ops
+from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import resource_variable_ops
+from tensorflow.python.ops import state_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables as variables_lib
 from tensorflow.python.platform import test
@@ -82,6 +84,16 @@ class VariableScopeTest(test.TestCase):
           sess.run(variables_lib.initialize_variables([w]))
           self.assertAllClose(w.eval(), 0.3)
 
+  def testVarScopeConstraint(self):
+    constraint = lambda x: 0. * x
+    with variable_scope.variable_scope("tower") as tower:
+      with variable_scope.variable_scope("foo", constraint=constraint):
+        v = variable_scope.get_variable("v", [])
+        self.assertEqual(v.constraint, constraint)
+      with variable_scope.variable_scope(tower, constraint=constraint):
+        w = variable_scope.get_variable("w", [])
+        self.assertEqual(w.constraint, constraint)
+
   def testVarScopeDType(self):
     with self.test_session():
       with variable_scope.variable_scope("tower") as tower:
@@ -114,7 +126,7 @@ class VariableScopeTest(test.TestCase):
           dtypes.int64, dtypes.bool
       ]
 
-      # Use different varibale_name to distinguish various dtypes
+      # Use different variable_name to distinguish various dtypes
       for (i, dtype) in enumerate(types):
         x = variable_scope.get_variable(
             name="x%d" % i, shape=(3, 4), dtype=dtype)
@@ -409,6 +421,26 @@ class VariableScopeTest(test.TestCase):
 
       with variable_scope.variable_scope(vs, reuse=False) as jump_no_reuse:
         self.assertFalse(jump_no_reuse.reuse)
+
+  def testVarScopeGetOrCreateReuse(self):
+    x = array_ops.placeholder(dtypes.float32)
+
+    with variable_scope.variable_scope("bar",
+                                       reuse=variable_scope.AUTO_REUSE):
+      v_assign = state_ops.assign(variable_scope.get_variable("var", []), x)
+
+    with variable_scope.variable_scope("bar",
+                                       reuse=variable_scope.AUTO_REUSE):
+      v = variable_scope.get_variable("var", [])
+
+    with self.test_session() as sess:
+      def test_value(value):
+        sess.run(v_assign, feed_dict={x: value})
+        self.assertEqual(value, v.eval())
+
+      test_value(42)  # Variable is created.
+      test_value(13)  # Variable is reused hereafter.
+      test_value(17)
 
   def testVarOpScope(self):
     with self.test_session():
@@ -711,7 +743,7 @@ class VariableScopeTest(test.TestCase):
     def device_func(op):
       if op.type in ["Variable", "VariableV2", "VarHandleOp"]:
         varname_type.append((op.name, op.get_attr("dtype")))
-      return "/gpu:0"
+      return "/device:GPU:0"
 
     with g.as_default():
       with ops.device(device_func):
@@ -723,12 +755,11 @@ class VariableScopeTest(test.TestCase):
 
   def testGetCollection(self):
     with self.test_session():
-      a = variable_scope.get_variable("a", [])
-      b = variable_scope.get_variable("b", [], trainable=False)
+      _ = variable_scope.get_variable("a", [])
+      _ = variable_scope.get_variable("b", [], trainable=False)
       with variable_scope.variable_scope("foo_") as scope1:
-        a = variable_scope.get_variable("a", [])
-        b = variable_scope.get_variable("b", [], trainable=False)
-
+        _ = variable_scope.get_variable("a", [])
+        _ = variable_scope.get_variable("b", [], trainable=False)
         self.assertEqual([
             v.name
             for v in scope1.get_collection(ops.GraphKeys.TRAINABLE_VARIABLES)
@@ -738,8 +769,8 @@ class VariableScopeTest(test.TestCase):
             for v in scope1.get_collection(ops.GraphKeys.GLOBAL_VARIABLES)
         ], ["foo_/a:0", "foo_/b:0"])
       with variable_scope.variable_scope("foo") as scope2:
-        a = variable_scope.get_variable("a", [])
-        b = variable_scope.get_variable("b", [], trainable=False)
+        _ = variable_scope.get_variable("a", [])
+        _ = variable_scope.get_variable("b", [], trainable=False)
         self.assertEqual([
             v.name
             for v in scope2.get_collection(ops.GraphKeys.TRAINABLE_VARIABLES)
@@ -759,20 +790,38 @@ class VariableScopeTest(test.TestCase):
 
   def testGetTrainableVariables(self):
     with self.test_session():
-      a = variable_scope.get_variable("a", [])
+      _ = variable_scope.get_variable("a", [])
       with variable_scope.variable_scope("foo") as scope:
-        b = variable_scope.get_variable("b", [])
-        c = variable_scope.get_variable("c", [], trainable=False)
+        _ = variable_scope.get_variable("b", [])
+        _ = variable_scope.get_variable("c", [], trainable=False)
         self.assertEqual([v.name
                           for v in scope.trainable_variables()], ["foo/b:0"])
 
   def testGetGlobalVariables(self):
     with self.test_session():
-      a = variable_scope.get_variable("a", [])
+      _ = variable_scope.get_variable("a", [])
       with variable_scope.variable_scope("foo") as scope:
-        b = variable_scope.get_variable("b", [])
+        _ = variable_scope.get_variable("b", [])
         self.assertEqual([v.name
                           for v in scope.global_variables()], ["foo/b:0"])
+
+  def testGetLocalVariables(self):
+    with self.test_session():
+      _ = variable_scope.get_variable(
+          "a", [], collections=[ops.GraphKeys.LOCAL_VARIABLES])
+      with variable_scope.variable_scope("foo") as scope:
+        _ = variable_scope.get_variable(
+            "b", [], collections=[ops.GraphKeys.LOCAL_VARIABLES])
+        _ = variable_scope.get_variable(
+            "c", [])
+        self.assertEqual([v.name
+                          for v in scope.local_variables()], ["foo/b:0"])
+
+  def testGetVariableWithRefDtype(self):
+    v = variable_scope.get_variable("v", shape=[3, 4], dtype=dtypes.float32)
+    # Ensure it is possible to do get_variable with a _ref dtype passed in.
+    _ = variable_scope.get_variable("w", shape=[5, 6], dtype=v.dtype)
+
 
 def axis0_into1_partitioner(shape=None, **unused_kwargs):
   part = [1] * len(shape)
@@ -801,7 +850,7 @@ class VariableScopeWithPartitioningTest(test.TestCase):
           dtypes.int64, dtypes.bool
       ]
 
-      # Use different varibale_name to distinguish various dtypes
+      # Use different variable_name to distinguish various dtypes
       for (i, dtype) in enumerate(types):
         x = variable_scope.get_variable(
             name="x%d" % i,
@@ -950,6 +999,25 @@ class VariableScopeWithCustomGetterTest(test.TestCase):
     self.assertEqual(v, v2)
     self.assertEqual(v3, v4)
     self.assertEqual(3, called[0])  # skipped one in the first new_scope
+
+  def testCustomGetterWithReuse(self):
+    # Custom getter can choose to behave differently on reused variables.
+    def custom_getter(getter, *args, **kwargs):
+      var = getter(*args, **kwargs)
+      if kwargs["reuse"]:
+        # This can be used, e.g., for changing the caching device if needed.
+        return array_ops.identity(var, name="reused")
+      else:
+        return array_ops.identity(var, name="not_reused")
+
+    with variable_scope.variable_scope(
+        "scope", custom_getter=custom_getter) as scope:
+      v = variable_scope.get_variable("v", [1])
+    with variable_scope.variable_scope(scope, reuse=True):
+      v2 = variable_scope.get_variable("v", [1])
+
+    self.assertEqual(v.name, "not_reused:0")
+    self.assertEqual(v2.name, "reused:0")
 
   def testGetterThatCreatesTwoVariablesAndSumsThem(self):
 
